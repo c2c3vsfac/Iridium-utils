@@ -117,6 +117,9 @@ def convert(proto_name):
         elif re.sub("repeated_", "", value) in need_import:
             _, d_rule, d_name = convert(re.sub("repeated_", "", value))
             encoding_rules[key] = {"repeated": [d_rule, d_name]}
+        elif re.sub("repeated_", "", value) in other_message:
+            encoding_rules[key] = {"repeated": [other_message[re.sub("repeated_", "", value)][0],
+                                                other_message[re.sub("repeated_", "", value)][1]]}
         elif value in other_message:
             encoding_rules[key] = other_message[value][0]
             prop_name[key] = other_message[value][1]
@@ -131,7 +134,6 @@ d_pkt_id = json.load(f)
 f.close()
 last_key = list(d_pkt_id.keys())[-1]
 f = open("packet_serialization.json", "w")
-# proto_serial = {}
 f.write("{\n")
 for key, value in d_pkt_id.items():
     _, encoding_rules, prop_names = convert(value)
@@ -142,4 +144,6 @@ for key, value in d_pkt_id.items():
         f.write(",\n")
 f.write("}")
 f.close()
+
+
 
