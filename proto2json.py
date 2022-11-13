@@ -117,12 +117,12 @@ def convert(proto_name):
         elif re.sub("repeated_", "", value) in need_import:
             _, d_rule, d_name = convert(re.sub("repeated_", "", value))
             encoding_rules[key] = {"repeated": [d_rule, d_name]}
-        elif re.sub("repeated_", "", value) in other_message:
-            encoding_rules[key] = {"repeated": [other_message[re.sub("repeated_", "", value)][0],
-                                                other_message[re.sub("repeated_", "", value)][1]]}
         elif value in other_message:
             encoding_rules[key] = other_message[value][0]
             prop_name[key] = other_message[value][1]
+        elif re.sub("repeated_", "", value) in other_message and value.startswith("repeated_"):
+            encoding_rules[key] = {"repeated": [other_message[re.sub("repeated_", "", value)][0],
+                                                other_message[re.sub("repeated_", "", value)][1]]}
         elif value in enum_dict:
             encoding_rules[key] = "enum"
             prop_name[key] = {prop_name[key]: enum_dict[value]}
