@@ -13,7 +13,8 @@ for name in file_name:
     lines = f.readlines()
     f.close()
     for line in lines:
-        if line.startswith("// CmdId:"):
+        # if line.startswith("// CmdId:"): 3.2-
+        if line.startswith("  //   CMD_ID"):  #3.3
             packet_id = re.findall("\d+", line)[0]
             packet[packet_id] = os.path.splitext(name)[0]
             continue
@@ -22,4 +23,3 @@ json_packet_id = json.dumps(packet)
 f = open("packet_id.json", "w")
 f.write(json_packet_id)
 f.close()
-
