@@ -9,17 +9,18 @@ file_name = os.listdir(file_path)
 packet = {}
 
 for name in file_name:
-    f = open(file_path + "/" + name, "r")
-    lines = f.readlines()
-    f.close()
-    for line in lines:
-        # if line.startswith("// CmdId:"): 3.2-
-        if line.startswith("  //   CMD_ID"):  #3.3
-            packet_id = re.findall("\d+", line)[0]
-            packet[packet_id] = os.path.splitext(name)[0]
-            continue
+    if name.endswith(".proto"):
+        with open(file_path + "/" + name, "r", encoding="utf-8") as f:
+            lines = f.readlines()
+        for line in lines:
+            if line.startswith("// CmdId:"): # 3.2-
+            # if line.startswith("  //   CMD_ID"):  # 3.3
+            # if line.strip().startswith("//	PEPPOHPHJOJ"): # 3.4
+                packet_id = re.findall("\d+", line)[0]
+                packet[packet_id] = os.path.splitext(name)[0]
+                break
 
-json_packet_id = json.dumps(packet)
+json_packet_id = json.dumps(packet, indent=1)
 f = open("packet_id.json", "w")
 f.write(json_packet_id)
 f.close()
