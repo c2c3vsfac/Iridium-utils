@@ -5,7 +5,7 @@ import json
 
 def read_proto(file):
     try:
-        with open(file, "r") as f:
+        with open(file, "r", encoding="utf-8") as f:
             lines = f.readlines()
     except FileNotFoundError:
         print("找不到文件：" + file)
@@ -18,85 +18,101 @@ def read_proto(file):
     other_message = {}
     save = []
     for line in lines:
-        if not line.startswith("  //"):
+        line = line.lstrip()
+        if not line.startswith("//"):
+
+            # 去掉注释
+            end_pos = line.find(";")
+            if end_pos != -1:
+                line = line[:end_pos + 1]
+
+            # 解的proto有时用\t有时用空格
+            split_line = re.split(" ", line)
+            split_line = [each for each in split_line if each] # 连续多空格
             if line.startswith("import"):
-                file_whole_name = re.findall(r'"(.*)"', re.split(" ", line)[1])[0]
+                file_whole_name = re.findall(r'"(.*)"', split_line[1])[0]
                 file_name = re.sub(".proto", "", file_whole_name)
                 need_import.append(file_name)
-            else:
-                # 解的proto有时用\t有时用空格
-                no_left_space_line = line.lstrip()
-                split_line = re.split(" ", no_left_space_line)
-                data_type = re.sub("\\t", "", split_line[0])
-                if data_type == "}\n":
-                    if save:  # oneof 会有多余的括号
-                        if save[-1][0] == "message":
-                            if save[-1][1] == proto_name:
-                                message_return_dict = save[-1][2]
-                                message_prop_name = save[-1][3]
-                            else:
-                                other_message[save[-1][1]] = [save[-1][2], save[-1][3]]
-                            save.pop(-1)
-                        elif save[-1][0] == "enum":
-                            enum_dict[save[-1][1]] = save[-1][2]
-                            save.pop(-1)
-                    continue
-                elif data_type == "message":
-                    save.append((data_type, split_line[1], {}, {}))
-                    continue
-                elif data_type == "enum":
-                    save.append((data_type, split_line[1], {}))
-                    continue
-                if save:
-                    if save[-1][0] == "enum":
-                        data_id = re.findall("\d+", split_line[2])[0]
-                        save[-1][2][data_id] = data_type
-                    else:
-                        if len(split_line) > 3:  # 空行,忽略oneof
-                            if len(split_line) == 4:
-                                prop = split_line[1]
-                                data_id = re.findall("\d+", split_line[3])[0]
-                                save[-1][2][data_id] = data_type
+                continue
+            elif line.startswith("message"):
+                save.append((split_line[0], split_line[1], {}, {}))
+                continue
+            elif line.startswith("enum"):
+                save.append((split_line[0], split_line[1], {}))
+                continue
+            elif line.startswith("}\n") or line.startswith("}"):
+                if save:  # oneof 会有多余的括号
+                    if save[-1][0] == "message":
+                        if save[-1][1] == proto_name:
+                            message_return_dict = save[-1][2]
+                            message_prop_name = save[-1][3]
+                        else:
+                            other_message[save[-1][1]] = [save[-1][2], save[-1][3]]
+                        save.pop(-1)
+                    elif save[-1][0] == "enum":
+                        enum_dict[save[-1][1]] = save[-1][2]
+                        save.pop(-1)
+                continue
+            if save:
+                if save[-1][0] == "enum":
+                    data_id = re.findall("\d+", split_line[2])[0]
+                    save[-1][2][data_id] = split_line[0]
+                else:
+                    if len(split_line) > 3:  # 空行,忽略oneof
+                        if split_line[0] == 'optional':
+                            split_line.pop(0)
+                        if len(split_line) == 4:
+                            prop = split_line[1]
+                            data_id = re.findall("\d+", split_line[3])[0]
+                            save[-1][2][data_id] = split_line[0]
+                            save[-1][3][data_id] = prop
+                        elif len(split_line) == 5:  # repeated and map
+                            if split_line[0] == "repeated":
+                                data_type = split_line[1]
+                                prop = split_line[2]
+                                data_id = re.findall("\d+", split_line[4])[0]
+                                save[-1][2][data_id] = "repeated_" + data_type
                                 save[-1][3][data_id] = prop
-                            elif len(split_line) == 5:  # repeated and map
-                                wire_type = re.sub("\\t", "", split_line[0])
-                                if wire_type == "repeated":
-                                    data_type = split_line[1]
-                                    prop = split_line[2]
-                                    data_id = re.findall("\d+", split_line[4])[0]
-                                    save[-1][2][data_id] = "repeated_" + data_type
-                                    save[-1][3][data_id] = prop
-                                else:
-                                    data_type = wire_type + split_line[1]
-                                    type_name = re.findall("map<(.*)>", data_type)[0]
-                                    type1, type2 = re.split(",", type_name)
-                                    prop = split_line[2]
-                                    data_id = re.findall("\d+", split_line[4])[0]
-                                    save[-1][2][data_id] = [type1, type2]
-                                    save[-1][3][data_id] = prop
+                            else:
+                                data_type = split_line[0] + split_line[1]
+                                type_name = re.findall("map<(.*)>", data_type)[0]
+                                type1, type2 = re.split(",", type_name)
+                                prop = split_line[2]
+                                data_id = re.findall("\d+", split_line[4])[0]
+                                save[-1][2][data_id] = [type1, type2]
+                                save[-1][3][data_id] = prop
     return need_import, enum_dict, message_return_dict, message_prop_name, other_message
 
 
 def convert(proto_name):
     file_path = os.getcwd()
     proto_name = file_path + "\\proto\\" + proto_name + ".proto"
+    # print("now_proto_name: %s" % proto_name)
     need_import, enum_dict, encoding_rules, prop_name, other_message = read_proto(proto_name)
     for key, value in encoding_rules.items():
+        # print("er:" + str(encoding_rules))
+        # print("pn:" + str(prop_name))
         if value in need_import:
-            enum_dict, d_rule, d_name = convert(value)
-            if value in enum_dict:
+            import_enum_dict, d_rule, d_name = convert(value)
+            if value in import_enum_dict:
                 encoding_rules[key] = "enum"
-                prop_name[key] = {prop_name[key]: enum_dict[value]}
+                prop_name[key] = {prop_name[key]: import_enum_dict[value]}
             else:
                 encoding_rules[key] = [d_rule, d_name]
         elif isinstance(value, list):  # map第一位只能为整数或字符串
             if value[1] in need_import:
-                _, d_rule, d_name = convert(value[1])
-                encoding_rules[key] = {"map": [value[0], [d_rule, d_name]]}
+                import_enum_dict, d_rule, d_name = convert(value[1])
+                # print(import_enum_dict)
+                if value[1] in import_enum_dict:
+                    encoding_rules[key] = {"map": [value[0], ["enum", {prop_name[key]: import_enum_dict[value[1]]}]]}
+                else:
+                    encoding_rules[key] = {"map": [value[0], [d_rule, d_name]]}
             else:
                 encoding_rules[key] = {"map": value}
         elif re.sub("repeated_", "", value) in need_import:
-            _, d_rule, d_name = convert(re.sub("repeated_", "", value))
+            import_enum_dict, d_rule, d_name = convert(re.sub("repeated_", "", value))
+            if value in import_enum_dict:
+                encoding_rules[key] = {"repeated": ["enum", {prop_name[key]: import_enum_dict[value]}]}
             encoding_rules[key] = {"repeated": [d_rule, d_name]}
         elif value in other_message:
             encoding_rules[key] = other_message[value][0]
@@ -110,11 +126,11 @@ def convert(proto_name):
     return enum_dict, encoding_rules, prop_name
 
 
-f = open("packet_id.json", "r")
+f = open("packet_id.json", "r", encoding="utf-8")
 d_pkt_id = json.load(f)
 f.close()
 last_key = list(d_pkt_id.keys())[-1]
-f = open("packet_serialization.json", "w")
+f = open("packet_serialization.json", "w", encoding="utf-8")
 f.write("{\n")
 for key, value in d_pkt_id.items():
     _, encoding_rules, prop_names = convert(value)
@@ -128,7 +144,7 @@ f.close()
 
 # UnionCmdNotify
 # ***********************************************************
-# f = open("packet_id_unioncmdnotify2.json", "r")
+# f = open("ucn_match.json", "r")
 # d_pkt_id = json.load(f)
 # f.close()
 # last_key = list(d_pkt_id.keys())[-1]
@@ -177,11 +193,56 @@ def judge_type(prop_name):
 # file_path = file_path + "\\proto\\"
 # files = os.listdir(file_path)
 # for file in files:
-#     file_name = file.replace(".proto", "")
-#     _, rule, _ = convert(file_name)
-#     if "2" in rule:
-#         if rule["2"] == "uint32":
-#             print(file_name)
-
+#     _, _, rule, name, _ = read_proto(file_path + file)
+#     # file_name = file.replace(".proto", "")
+#     # _, rule, _ = convert(file_name)
+#     if len(rule) == 5:
+#         l_rule = list(rule.values())
+#         satisfy = True
+#         for each in l_rule:
+#             if isinstance(each, str):
+#                 pass
+#             else:
+#                 satisfy = False
+#                 break
+#         print(file)
+#         if satisfy:
+#             if set(l_rule) == {"uint32", "int32"}:
+#     # if "3" in rule and "12" in rule and "15" in rule:
+#         # if rule["2"] == "uint32":
+#         # if judge_type(rule["3"]) == 2 and judge_type(rule["12"]) == 2 and judge_type(rule["15"]) == 2:
+#                 print(file)
+# print(convert("AbilityChangeNotify"))
+# DEOFBFHGCBD.proto -> AbilityMetaSpecialFloatArgument
 # ***********************************************************
+# proto_preprocess
+# from iridium_utils import extract_text_current_line_from_file
+# file_path = os.getcwd()
+# file_path = file_path + "\\proto"
+# file_name = os.listdir(file_path)
+# packet = {}
+#
+# for name in file_name:
+#     f = open(file_path + "/" + name, "r")
+#     text = f.read()
+#     result = text.find("PEPPOHPHJOJ")
+#     f.close()
+#     if result != -1:
+#         line_packet_id = extract_text_current_line_from_file(text, "PEPPOHPHJOJ")
+#         packet_id = re.findall("\d+", line_packet_id)[0]
+#         pre_text = text[:result]
+#         reverse_pre_text = pre_text[::-1]
+#         start_location = reverse_pre_text.find("{")
+#         start_location = len(pre_text) - start_location
+#         pre_text = text[:start_location]
+#         reverse_pre_text = pre_text[::-1]
+#         start_location = reverse_pre_text.find("\n")
+#         start_location = len(pre_text) - start_location
+#         end_location = text.find("}", result)
+#         text = text.replace(text[start_location: end_location + 1], "")
+#         f = open(file_path + "/" + name, "w", encoding="utf-8")
+#         f.write("// " + packet_id + "\n")
+#         f.write(text)
+#         f.close()
+
 
