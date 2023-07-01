@@ -102,18 +102,20 @@ def convert(proto_name):
         elif isinstance(value, list):  # map第一位只能为整数或字符串
             if value[1] in need_import:
                 import_enum_dict, d_rule, d_name = convert(value[1])
-                # print(import_enum_dict)
                 if value[1] in import_enum_dict:
-                    encoding_rules[key] = {"map": [value[0], ["enum", {prop_name[key]: import_enum_dict[value[1]]}]]}
+                    encoding_rules[key] = {"map": [value[0], ["enum", import_enum_dict[value[1]]]]}
                 else:
                     encoding_rules[key] = {"map": [value[0], [d_rule, d_name]]}
             else:
                 encoding_rules[key] = {"map": value}
         elif re.sub("repeated_", "", value) in need_import:
-            import_enum_dict, d_rule, d_name = convert(re.sub("repeated_", "", value))
-            if value in import_enum_dict:
-                encoding_rules[key] = {"repeated": ["enum", {prop_name[key]: import_enum_dict[value]}]}
-            encoding_rules[key] = {"repeated": [d_rule, d_name]}
+            need_import_proto_name = value.replace("repeated_", "")
+            import_enum_dict, d_rule, d_name = convert(need_import_proto_name)
+            if need_import_proto_name in import_enum_dict:
+                encoding_rules[key] = "repeated_enum"
+                prop_name[key] = [prop_name[key], import_enum_dict[need_import_proto_name]]
+            else:
+                encoding_rules[key] = {"repeated": [d_rule, d_name]}
         elif value in other_message:
             encoding_rules[key] = other_message[value][0]
             prop_name[key] = other_message[value][1]
@@ -126,21 +128,21 @@ def convert(proto_name):
     return enum_dict, encoding_rules, prop_name
 
 
-f = open("packet_id.json", "r", encoding="utf-8")
-d_pkt_id = json.load(f)
-f.close()
-last_key = list(d_pkt_id.keys())[-1]
-f = open("packet_serialization.json", "w", encoding="utf-8")
-f.write("{\n")
-for key, value in d_pkt_id.items():
-    _, encoding_rules, prop_names = convert(value)
-    f.write(json.dumps(key) + ": " + json.dumps([encoding_rules, prop_names]))
-    if key == last_key:
-        f.write("\n")
-    else:
-        f.write(",\n")
-f.write("}")
-f.close()
+# f = open("packet_id.json", "r", encoding="utf-8")
+# d_pkt_id = json.load(f)
+# f.close()
+# last_key = list(d_pkt_id.keys())[-1]
+# f = open("packet_serialization.json", "w", encoding="utf-8")
+# f.write("{\n")
+# for key, value in d_pkt_id.items():
+#     _, encoding_rules, prop_names = convert(value)
+#     f.write(json.dumps(key) + ": " + json.dumps([encoding_rules, prop_names]))
+#     if key == last_key:
+#         f.write("\n")
+#     else:
+#         f.write(",\n")
+# f.write("}")
+# f.close()
 
 # UnionCmdNotify
 # ***********************************************************
