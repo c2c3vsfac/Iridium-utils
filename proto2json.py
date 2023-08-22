@@ -17,10 +17,10 @@ def read_proto(file):
     message_prop_name = {}
     other_message = {}
     save = []
+    one_of_ignore = False
     for line in lines:
         line = line.lstrip()
         if not line.startswith("//"):
-
             # 去掉注释
             end_pos = line.find(";")
             if end_pos != -1:
@@ -40,8 +40,13 @@ def read_proto(file):
             elif line.startswith("enum"):
                 save.append((split_line[0], split_line[1], {}))
                 continue
+            elif line.startswith("oneof"):
+                one_of_ignore = True
+                continue
             elif line.startswith("}\n") or line.startswith("}"):
-                if save:  # oneof 会有多余的括号
+                if one_of_ignore:  # oneof 会有多余的括号
+                    one_of_ignore = False
+                else:
                     if save[-1][0] == "message":
                         if save[-1][1] == proto_name:
                             message_return_dict = save[-1][2]
@@ -85,7 +90,8 @@ def read_proto(file):
 
 
 def convert(proto_name):
-    file_path = os.getcwd()
+    current_path = os.path.dirname(os.path.abspath(__file__))
+    file_path = os.path.dirname(current_path)
     proto_name = file_path + "\\proto\\" + proto_name + ".proto"
     # print("now_proto_name: %s" % proto_name)
     need_import, enum_dict, encoding_rules, prop_name, other_message = read_proto(proto_name)
@@ -128,21 +134,21 @@ def convert(proto_name):
     return enum_dict, encoding_rules, prop_name
 
 
-# f = open("packet_id.json", "r", encoding="utf-8")
-# d_pkt_id = json.load(f)
-# f.close()
-# last_key = list(d_pkt_id.keys())[-1]
-# f = open("packet_serialization.json", "w", encoding="utf-8")
-# f.write("{\n")
-# for key, value in d_pkt_id.items():
-#     _, encoding_rules, prop_names = convert(value)
-#     f.write(json.dumps(key) + ": " + json.dumps([encoding_rules, prop_names]))
-#     if key == last_key:
-#         f.write("\n")
-#     else:
-#         f.write(",\n")
-# f.write("}")
-# f.close()
+f = open("packet_id.json", "r", encoding="utf-8")
+d_pkt_id = json.load(f)
+f.close()
+last_key = list(d_pkt_id.keys())[-1]
+f = open("packet_serialization.json", "w", encoding="utf-8")
+f.write("{\n")
+for key, value in d_pkt_id.items():
+    _, encoding_rules, prop_names = convert(value)
+    f.write(json.dumps(key) + ": " + json.dumps([encoding_rules, prop_names]))
+    if key == last_key:
+        f.write("\n")
+    else:
+        f.write(",\n")
+f.write("}")
+f.close()
 
 # UnionCmdNotify
 # ***********************************************************
@@ -157,13 +163,13 @@ def convert(proto_name):
 # fw2.write("{\n")
 # for key, value in d_pkt_id.items():
 #     if not value.startswith("1"):
-#         fw.write(json.dumps(key) + ": " + json.dumps(str(i + 10000)))
+#         fw.write(json.dumps(key) + ": " + json.dumps(str(i + 100000)))
 #         if key == last_key:
 #             fw.write("\n")
 #         else:
 #             fw.write(",\n")
 #         _, encoding_rules, prop_names = convert(value)
-#         fw2.write(json.dumps(str(i + 10000)) + ": " + json.dumps([encoding_rules, prop_names]))
+#         fw2.write(json.dumps(str(i + 100000)) + ": " + json.dumps([encoding_rules, prop_names]))
 #         if key == last_key:
 #             fw2.write("\n")
 #         else:
